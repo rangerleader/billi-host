@@ -13,6 +13,10 @@ from telethon.tl.functions.channels import GetAdminedPublicChannelsRequest
 from telethon.tl.functions.photos import DeletePhotosRequest, GetUserPhotosRequest
 from telethon.tl.types import Channel, Chat, InputPhoto, User
 
+from userbot import CMD_HELP, bot
+from mafiabot.utils import admin_cmd
+from userbot.cmdhelp import CmdHelp
+
 # ====================== CONSTANT ===============================
 INVALID_MEDIA = "```The extension of the media entity is invalid.```"
 PP_CHANGED = "```Profile picture changed successfully.```"
@@ -25,19 +29,21 @@ USERNAME_TAKEN = "```This username is already taken.```"
 # ===============================================================
 
 
-@bot.on(admin_cmd(pattern="pbio (.*)"))
+@bot.on(admin_cmd(pattern="pbio (.*)"))  # pylint:disable=E0602
 async def _(event):
     if event.fwd_from:
         return
     bio = event.pattern_match.group(1)
     try:
-        await event.client(functions.account.UpdateProfileRequest(about=bio))
+        await bot(
+            functions.account.UpdateProfileRequest(about=bio)  # pylint:disable=E0602
+        )
         await event.edit("Succesfully changed my profile bio")
-    except Exception as e:
+    except Exception as e:  # pylint:disable=C0103,W0703
         await event.edit(str(e))
 
 
-@bot.on(admin_cmd(pattern="pname ((.|\n)*)"))
+@bot.on(admin_cmd(pattern="pname ((.|\n)*)"))  # pylint:disable=E0602,W0703
 async def _(event):
     if event.fwd_from:
         return
@@ -47,65 +53,54 @@ async def _(event):
     if "|" in names:
         first_name, last_name = names.split("|", 1)
     try:
-        await event.client(
-            functions.account.UpdateProfileRequest(
+        await bot(
+            functions.account.UpdateProfileRequest(  # pylint:disable=E0602
                 first_name=first_name, last_name=last_name
             )
         )
         await event.edit("My name was changed successfully")
-    except Exception as e:
+    except Exception as e:  # pylint:disable=C0103,W0703
         await event.edit(str(e))
 
 
-@bot.on(admin_cmd(pattern="ppic"))
+@bot.on(admin_cmd(pattern="ppic"))  # pylint:disable=E0602
 async def _(event):
     if event.fwd_from:
         return
     reply_message = await event.get_reply_message()
     await event.edit("Downloading Profile Picture to my local ...")
-    if not os.path.isdir(Config.TMP_DOWNLOAD_DIRECTORY):
-        os.makedirs(Config.TMP_DOWNLOAD_DIRECTORY)
+    if not os.path.isdir(Config.TMP_DOWNLOAD_DIRECTORY):  # pylint:disable=E0602
+        os.makedirs(Config.TMP_DOWNLOAD_DIRECTORY)  # pylint:disable=E0602
     photo = None
     try:
-        photo = await event.client.download_media(
-            reply_message, Config.TMP_DOWNLOAD_DIRECTORY
+        photo = await bot.download_media(  # pylint:disable=E0602
+            reply_message, Config.TMP_DOWNLOAD_DIRECTORY  # pylint:disable=E0602
         )
-    except Exception as e:
+    except Exception as e:  # pylint:disable=C0103,W0703
         await event.edit(str(e))
     else:
         if photo:
-            await event.edit("now, Uploading to Telegram ...")
-            if photo.endswith((".mp4", ".MP4")):
-                # https://t.me/tgbetachat/324694
-                size = os.stat(photo).st_size
-                if size > 2097152:
-                    await event.edit("size must be less than 2 mb")
-                    os.remove(photo)
-                    return
-                catpic = None
-                catvideo = await event.client.upload_file(photo)
-            else:
-                catpic = await event.client.upload_file(photo)
-                catvideo = None
+            await event.edit("now, Uploading to @Telegram ...")
+            file = await bot.upload_file(photo)  # pylint:disable=E0602
             try:
-                await event.client(
-                    functions.photos.UploadProfilePhotoRequest(
-                        file=catpic, video=catvideo, video_start_ts=0.01
+                await bot(
+                    functions.photos.UploadProfilePhotoRequest(  # pylint:disable=E0602
+                        file
                     )
                 )
-            except Exception as e:
+            except Exception as e:  # pylint:disable=C0103,W0703
                 await event.edit(str(e))
             else:
                 await event.edit("My profile picture was succesfully changed")
     try:
         os.remove(photo)
-    except Exception as e:
-        print(str(e))
+    except Exception as e:  # pylint:disable=C0103,W0703
+        logger.warn(str(e))  # pylint:disable=E0602
 
 
 @bot.on(admin_cmd(outgoing=True, pattern="username (.*)"))
 async def update_username(username):
-    """For .username command, set a new username in Telegram."""
+    """ For .username command, set a new username in Telegram. """
     newusername = username.pattern_match.group(1)
     try:
         await username.client(UpdateUsernameRequest(newusername))
@@ -116,7 +111,7 @@ async def update_username(username):
 
 @bot.on(admin_cmd(outgoing=True, pattern="count$"))
 async def count(event):
-    """For .count command, get profile stats."""
+    """ For .count command, get profile stats. """
     u = 0
     g = 0
     c = 0
@@ -124,7 +119,7 @@ async def count(event):
     b = 0
     result = ""
     await event.edit("`Processing..`")
-    dialogs = await event.client.get_dialogs(limit=None, ignore_migrated=True)
+    dialogs = await bot.get_dialogs(limit=None, ignore_migrated=True)
     for d in dialogs:
         currrent_entity = d.entity
         if isinstance(currrent_entity, User):
@@ -153,7 +148,7 @@ async def count(event):
 
 @bot.on(admin_cmd(outgoing=True, pattern=r"delpfp"))
 async def remove_profilepic(delpfp):
-    """For .delpfp command, delete your current profile picture in Telegram."""
+    """ For .delpfp command, delete your current profile picture in Telegram. """
     group = delpfp.text[8:]
     if group == "all":
         lim = 0
@@ -161,17 +156,19 @@ async def remove_profilepic(delpfp):
         lim = int(group)
     else:
         lim = 1
+
     pfplist = await delpfp.client(
         GetUserPhotosRequest(user_id=delpfp.sender_id, offset=0, max_id=0, limit=lim)
     )
-    input_photos = [
-        InputPhoto(
-            id=sep.id,
-            access_hash=sep.access_hash,
-            file_reference=sep.file_reference,
+    input_photos = []
+    for sep in pfplist.photos:
+        input_photos.append(
+            InputPhoto(
+                id=sep.id,
+                access_hash=sep.access_hash,
+                file_reference=sep.file_reference,
+            )
         )
-        for sep in pfplist.photos
-    ]
     await delpfp.client(DeletePhotosRequest(id=input_photos))
     await delpfp.edit(f"`Successfully deleted {len(input_photos)} profile picture(s).`")
 
@@ -180,31 +177,27 @@ async def remove_profilepic(delpfp):
 async def _(event):
     if event.fwd_from:
         return
-    result = await event.client(GetAdminedPublicChannelsRequest())
-    output_str = "".join(
-        f"- {channel_obj.title} @{channel_obj.username} \n"
-        for channel_obj in result.chats
-    )
-
+    result = await bot(GetAdminedPublicChannelsRequest())
+    output_str = ""
+    for channel_obj in result.chats:
+        output_str += f"- {channel_obj.title} @{channel_obj.username} \n"
     await event.edit(output_str)
 
 
-CMD_HELP.update(
-    {
-        "profile": "**Plugin : **`profile`\
-        \n\n•  **Syntax : **`.username <new_username>`\
-        \n•  **Function : **__ Changes your Telegram username.__\
-        \n\n•  **Syntax : **`.pname <name>`\
-        \n•  **Function : **__ Changes your Telegram name.(First and last name will get split by the first space)__\
-        \n\n•  **Syntax : **`.ppic`\
-        \n•  **Function : **__ Reply with .setpfp or .ppic to an image to change your Telegram profie picture.__\
-        \n\n•  **Syntax : **`.pbio <new_bio>`\
-        \n•  **Function : **__ Changes your Telegram bio.__\
-        \n\n•  **Syntax : **`.delpfp or .delpfp <number>/<all>`\
-        \n•  **Function : **__ Deletes your Telegram profile picture(s).__\
-        \n\n•  **Syntax : **`.myusernames`\
-        \n•  **Function : **__ Shows usernames of your created channels and groups __\
-        \n\n•  **Syntax : **`.count`\
-        \n•  **Function : **__ Counts your groups, chats, bots etc...__"
-    }
-)
+CmdHelp("profile").add_command(
+  "count", None, "Counts your groups, chats, bots etc..."
+).add_command(
+  "myusernames", None, "Shows usernames reserved by you. That is public groups or channels created by you"
+).add_command(
+  "delpfp", "<count>", "Deletes your Telegram profile picture(s)."
+).add_command(
+  "pbio", "<text>", "Changes your Telegram bio", ".pbio Hello there, This iz my bio"
+).add_command(
+  "ppic", "<reply to image>", "Changes your Telegram profie picture with the one you replied to"
+).add_command(
+  "pname", "<firstname> or <firstname | lastname>", "Changes Your Telegram account name"
+).add_command(
+  "username", "<new username>", "Changes your Telegram Account Username"
+).add_command(
+  "kickme", None, "Gets out of the grp..."
+).add()
